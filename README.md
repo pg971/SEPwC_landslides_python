@@ -1,4 +1,4 @@
-# SEPwC Landslide Risk Courseowkr (Python)
+# SEPwC Landslide Risk Coursework (Python)
 
 ## Introduction
 
@@ -51,7 +51,8 @@ From those you will also need to generate slope raster and a "distance from faul
 Your code should run like:
 
 ```bash
-python3 terrain_analysis.py --topography data/AW3D30.tif --geology data/geology_raster.tif --landcover data/Landcover.tif --faults data/Confirmed_faults.shp data/landslides.shp probability.tif```
+python3 terrain_analysis.py --topography data/AW3D30.tif --geology data/geology_raster.tif --landcover data/Landcover.tif --faults data/Confirmed_faults.shp data/landslides.shp probability.tif
+```
 
 ## Hints and tips
 

@@ -60,7 +60,7 @@ Use `geopandas` to load shapefile data and manage most of the data wrangling.
 
 The `rasterio` module can handle the raster data and a number of other features you need 
 
-The `sklearn.ensamble.RandomForestClassifier`` can be used to generate the fitting function to generate 
+The `sklearn.ensamble.RandomForestClassifier` can be used to generate the fitting function to generate 
 the probability map. This can be done by extracting data from all of your rasters under the landslides shapefile
 into a geopandas data frame. You'll also need negative samples (hint: same length!). You send this into
 The RF classifier and then use `predict`!

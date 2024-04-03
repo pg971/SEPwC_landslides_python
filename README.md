@@ -65,13 +65,20 @@ the probability map. This can be done by extracting data from all of your raster
 into a geopandas data frame. You'll also need negative samples (hint: same length!). You send this into
 The RF classifier and then use `predict`!
 
+The data in the RF classifier should probably be split into "test" and "train", there is a function
+in `sklearn` to do that for you (`test_train_split`). It might be helpful to print the accuracy score
+or other metrics if the verbose flag is on, perhaps. You can find more random forests in python on [this
+webpage](https://www.datacamp.com/tutorial/random-forests-classifier-python).
+
 ## The rules
 
 You cannot alter any of the assert comments in `test/test_terrain.py`
 
 If you alter any function names in the main code, you *can* alter the name
-in the test file to match; however the rest of the test must remain unchanged. 
-This will be checked.
+in the test file to match or split the tests into different chunks; however 
+the actual test, i.e. the asserts, must remain unchanged. This will be checked.
+If you alter the tests, you may get conflicts if this main repository is changed. 
+It is your job to fix any. 
 
 If you wish to add more tests, please do, but place them in a separate file
 in the `test` directory. Remember to name the file `test_something.py`. You must

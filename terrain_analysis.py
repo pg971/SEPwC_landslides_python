@@ -27,6 +27,9 @@ def convert_to_rasterio(raster_data, template_raster):
 
 
 def extract_values_from_raster(raster, shape_object):
+    """Return raster values at the location of each point geometry."""
+    band = raster.read(1) 
+    return [band[raster.index(p.x,p.y)] for p in shape_object]
 
     return
 

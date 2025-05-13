@@ -1,5 +1,6 @@
 import pytest
 import sys
+import pandas as pd # added this 
 sys.path.insert(0,"../")
 sys.path.insert(0,"./")
 import rasterio # added this

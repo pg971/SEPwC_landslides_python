@@ -35,8 +35,27 @@ def extract_values_from_raster(raster, shape_object):
 
 
 def make_classifier(x, y, verbose=False):
+    """ 
+    Train Random Forest classifier on the input features and labels.
+    
+    Args: 
+        x: DataFrame of feature columns 
+        y: Series or list of labels (1 = landslide, 0 = not)
+        verbose: If True, print training accuracy 
+        
+    Returns: 
+        Trained RandomForestClassifier
+    """
 
-    return
+    from sklearn.ensemble import RandomForestClassifier
+
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf.fit(x,y)
+
+    if verbose: 
+        print("Training accuracy:", clf.score(x,y)) 
+    
+    return clf 
 
 def make_prob_raster_data(topo, geo, lc, dist_fault, slope, classifier):
 

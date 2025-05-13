@@ -1,8 +1,29 @@
 import argparse
 
 def convert_to_rasterio(raster_data, template_raster):
-  
-    return
+    """
+    Converts NumPy array into in-memory raster file 
+    using settings from template raster. 
+    
+    This helps work with data like a normal .tif map 
+    """
+    
+    import rasterio 
+    from rasterio.io import MemoryFile 
+    
+    profile = template_raster.profile 
+    profile.update({ 
+        "height": raster_data.shape[0], 
+        "width": raster_data.shape[1],
+        "count": 1, 
+        "dtype": raster_data.dtype
+    })
+    
+    with MemoryFile() as memfile:
+        with memfile.open(**profile) as dst: 
+            dst.write(raster_data, 1) 
+            
+        return memfile.open()
 
 
 def extract_values_from_raster(raster, shape_object):

@@ -2,6 +2,7 @@ import pytest
 import sys
 sys.path.insert(0,"../")
 sys.path.insert(0,"./")
+import rasterio # added this
 from terrain_analysis import *
 from pylint.lint import Run
 from pylint.reporters import CollectingReporter

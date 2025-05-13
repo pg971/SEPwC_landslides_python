@@ -7,6 +7,7 @@ from pylint.lint import Run
 from pylint.reporters import CollectingReporter
 from dataclasses import asdict
 import numpy as np
+import geopandas as gpd # Moved this line up to the top
 
 class TestTerrainAnalysis():
     
@@ -24,9 +25,6 @@ class TestTerrainAnalysis():
         
     
     def test_extract_from_raster(self):
-
-        import geopandas as gpd
-
         template = rasterio.open("test/data/raster_template.tif")
         point = gpd.read_file("test/data/test_point.shp")
         geom_sample = list(point.geometry)

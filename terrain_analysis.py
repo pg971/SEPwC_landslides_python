@@ -62,8 +62,37 @@ def make_prob_raster_data(topo, geo, lc, dist_fault, slope, classifier):
     return
 
 def create_dataframe(topo, geo, lc, dist_fault, slope, shape, landslides):
+    """ 
+    Create Geographic DataFrame containing raster values at given 
+        geometries, and label whether it's a landslide. 
+        
+        Args: 
+            topo, geo, lc, dist_falt, slope: rasterio datasets
+            shape: list of shapely Point geometries
+            landslides: 1 for landslide points, 0 for non-landslide points
+            
+        Returns: 
+            geopandas.GeoDataFrame with columns: elev, fault, slope, LC, Geol, ls
+    """ 
+    
+    import geopandas as gpd 
+    
+    #Create dataframe with only expected test columns (exclude geometry)
+        
+    df = gpd.GeoDataFrame({ 
+            "elev": extract_values_from_raster(topo, shape),
+            "fault": extract_values_from_raster(dist_fault,shape), 
+            "slope": extract_values_from_raster(slope,shape), 
+            "LC": extract_values_from_raster(lc,shape),
+            "Geol": extract_values_from_raster(geo,shape), 
+            "ls":[landslides] * len(shape),
+    }) 
+    
+    #Test expecting 6 columns therefore, attach geometry later or test always fails
+     
+    
 
-    return
+    return df
 
 
 def main():

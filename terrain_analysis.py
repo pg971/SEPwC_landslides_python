@@ -1,5 +1,5 @@
 import argparse
-
+import numpy as np # moved import up 
 def convert_to_rasterio(raster_data, template_raster):
     """
     Converts NumPy array into in-memory raster file 
@@ -58,9 +58,52 @@ def make_classifier(x, y, verbose=False):
     return clf 
 
 def make_prob_raster_data(topo, geo, lc, dist_fault, slope, classifier):
-
-    return
-
+    
+    """ 
+    Create raster of landslide probabilities using classifier. 
+    
+    Args: 
+        topo, geo, lc, dist_fault, slope: rasterio datset objects
+        classifier: trained RandomForestClassifier 
+        
+    Returns: 
+        2D NumPy arrary of predicted landslide probabilities (values 0 to 1)
+    """ 
+    
+    
+    # 1. Read rasters into 2D arrays 
+    elev = topo.read(1) 
+    geol = geo.read(1) 
+    landcover = lc.read(1) 
+    fault = dist_fault.read(1) 
+    slope_data = slope.read(1) 
+    
+    # 2. Flatten arrays into 1D
+    elev_flat = elev.flatten() 
+    geol_flat = geol.flatten() 
+    landcover_flat = landcover.flatten() 
+    fault_flat = fault.flatten() 
+    slope_flat = slope_data.flatten()
+    
+    # 3. Stack into 2D matrix 
+    X = np.stack([elev_flat, fault_flat, slope_flat, landcover_flat, geol_flat], axis=1)
+    
+    # 4. Mask invalid data 
+    mask = np.all (~np.isnan(X), axis=1) 
+    
+    # 5. Create ouput array and fill 
+    prob_flat = np.full(elev_flat.shape, np.nan) 
+    
+    # 6. Predict only where data is valid 
+    if np.any(mask): 
+        probs = classifier.predict_proba(X[mask]) 
+        prob_flat[mask] = probs[:,1] # Column 1 = probability of Landslide (class = 1)
+    
+    # 7. Reshape to 2D 
+    prob_map = prob_flat.reshape(elev.shape)
+    
+    return prob_map 
+    
 def create_dataframe(topo, geo, lc, dist_fault, slope, shape, landslides):
     """ 
     Create Geographic DataFrame containing raster values at given 
@@ -96,6 +139,10 @@ def create_dataframe(topo, geo, lc, dist_fault, slope, shape, landslides):
 
 
 def main():
+    import argparse 
+    import rasterio 
+    import geopandas as gpd 
+    import numpy as np 
 
 
     parser = argparse.ArgumentParser(
@@ -103,7 +150,8 @@ def main():
                      description="Calculate landslide hazards using simple ML",
                      epilog="Copyright 2024, Jon Hill"
                      )
-    parser.add_argument('--topography',
+    
+    parser.add_argument('--topography', 
                     required=True,
                     help="topographic raster file")
     parser.add_argument('--geology',
@@ -125,6 +173,77 @@ def main():
                     help="Print progress")
 
     args = parser.parse_args()
+    
+    # 1. Open raster files 
+    topo = rasterio.open(args.topography) 
+    geo = rasterio.open(args.geology) 
+    lc = rasterio.open(args.landcover) 
+    
+    # 2. Load fault shapefile and rasterize distance-from-fault
+    faults = gpd.read_file(args.faults) 
+    falt_points = list(faults.geometry) 
+    fault_raster = topo.read(1) # Use the topography for the template 
+    fault_array = np.where(fault_raster > -999, 0, 0) 
+    from proximity import proximity 
+    dist_fault = proximity(topo, fault_array, 0) 
+    
+    # 3. Load and Prepare landslide shapefile 
+    landslides = gpd.read_file(args.landslides) 
+    ls_geom = list(landslides.geometry) 
+    
+    # 4. Sample non-landslide (negative) points 
+    import random 
+    from shapely.geometry import Point 
+    np.random.seed(42) 
+    rows, cols = topo.read(1).shape 
+    neg_geom = [] 
+    attempts = 0 
+    max_attempts = len(ls_geom) * 20 #Allow 20 tries 
+    
+    while len(neg_geom) < len(ls_geom) and attempts < max_attempts: 
+        col = random.randint(0, cols -1) 
+        row = random.randint(0, rows -1) 
+        x,y = topo.xy(row,col) 
+        point = Point(x,y) 
+        
+        
+        if point not in ls_geom: 
+            neg_geom.append(point) 
+            
+            
+        attempts +=1 
+        
+    if len(neg_geom) < len(ls_geom): 
+       print("Warning: Only generated", len(neg_geom), "negative points.")
+        
+        
+            
+        
+    # 5. Create dataframes for landslide and non-landslide 
+    df_landslides = create_dataframe(topo, geo, lc, dist_fault, topo, ls_geom, 1) 
+    df_negatives = create_dataframe(topo, geo, lc, dist_fault, topo, neg_geom, 0) 
+    data = df_landslides.append(df_negatives) 
+    
+    # 6. Train classifier 
+    from sklearn.model_selection import train_test_split 
+    
+    x = data.drop(columns = ["ls"]) 
+    y = data["ls"] 
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3)
+    clf = make_classifier(x_train, y_train, verbose = args.verbose)
+    
+    if args.verbose: 
+        print("Model accuracy", clf.score(x_test, y_test)) 
+    
+    # 7. Predict probabilities raster    
+    prob_map = make_prob_raster_data(topo, geo, lc, dist_fault, topo, clf)
+    
+    # 8. Save to file 
+    profile = topo.profile 
+    profile.update(dtype=rasterio.float32, count=1) 
+    
+    with rasterio.open(args.output, 'w', **profile) as dst: 
+        dst.write(prob_map.astype(np.float32), 1)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 import argparse
 import numpy as np # moved import up 
+import geopandas as gpd # moved import up
+import pandas as pd
 def convert_to_rasterio(raster_data, template_raster):
     """
     Converts NumPy array into in-memory raster file 
@@ -11,7 +13,7 @@ def convert_to_rasterio(raster_data, template_raster):
     import rasterio 
     from rasterio.io import MemoryFile 
     
-    profile = template_raster.profile 
+    profile = template_raster.profile.copy()
     profile.update({ 
         "height": raster_data.shape[0], 
         "width": raster_data.shape[1],
@@ -19,19 +21,38 @@ def convert_to_rasterio(raster_data, template_raster):
         "dtype": raster_data.dtype
     })
     
-    with MemoryFile() as memfile:
-        with memfile.open(**profile) as dst: 
-            dst.write(raster_data, 1) 
-            
-        return memfile.open()
-
+    memfile = MemoryFile()
+    dataset = memfile.open(**profile) 
+    dataset.write(raster_data, 1) 
+    
+    #Keep reference to memfile alive 
+    dataset.memfile = memfile 
+    
+    return dataset 
+    
 
 def extract_values_from_raster(raster, shape_object):
     """Return raster values at the location of each point geometry."""
-    band = raster.read(1) 
-    return [band[raster.index(p.x,p.y)] for p in shape_object]
+    
+    band=raster.read(1)
+    values = [] 
+    rows, cols = band.shape
+    
+    for p in shape_object: 
+        try: 
+            row,col = raster.index(p.x, p.y) 
+            if 0 <= row < rows and 0 <= col < cols: 
+                values.append(band[row,col]) 
+            else: 
+                values.append(np.nan) 
+                
+        except: 
+            values.append(np.nan) 
+            
+    return values 
+        
 
-    return
+
 
 
 def make_classifier(x, y, verbose=False):
@@ -118,7 +139,6 @@ def create_dataframe(topo, geo, lc, dist_fault, slope, shape, landslides):
             geopandas.GeoDataFrame with columns: elev, fault, slope, LC, Geol, ls
     """ 
     
-    import geopandas as gpd 
     
     #Create dataframe with only expected test columns (exclude geometry)
         
@@ -137,6 +157,19 @@ def create_dataframe(topo, geo, lc, dist_fault, slope, shape, landslides):
 
     return df
 
+def calculate_slope(dem_array, transform): 
+    """Calculate slope using basic gradient estimation.""" 
+    from scipy.ndimage import sobel 
+    
+    dzdx = sobel(dem_array, axis=1) 
+    dzdy = sobel(dem_array, axis=0) 
+    
+    xres = transform.a 
+    yres = -transform.e 
+    
+    slope = np.sqrt((dzdx / (8*xres))**2 + (dzdy / (8 * yres))**2) 
+    
+    return slope 
 
 def main():
     import argparse 
@@ -179,17 +212,37 @@ def main():
     geo = rasterio.open(args.geology) 
     lc = rasterio.open(args.landcover) 
     
+    # 1b. Calculate slope and wrap as rasterio object
+    
+    elevation_array = topo.read(1) 
+    slope_array = calculate_slope(elevation_array, topo.transform) 
+    slope_raster = convert_to_rasterio(slope_array, topo) 
+    
     # 2. Load fault shapefile and rasterize distance-from-fault
-    faults = gpd.read_file(args.faults) 
-    falt_points = list(faults.geometry) 
-    fault_raster = topo.read(1) # Use the topography for the template 
-    fault_array = np.where(fault_raster > -999, 0, 0) 
+    from rasterio.features import rasterize 
     from proximity import proximity 
-    dist_fault = proximity(topo, fault_array, 0) 
+    
+    faults = gpd.read_file(args.faults) 
+    
+    #Turned falt lines into raster grid 
+    fault_array = rasterize( 
+        [(geom, 1) for geom in faults.geometry], 
+        out_shape=topo.shape, 
+        transform=topo.transform,
+        fill=0,
+        dtype= 'uint8'
+    ) 
+    
+    #Measure distance from pixel to nearest fault line
+    dist_array = proximity(topo, fault_array, 1)
+    dist_fault = convert_to_rasterio(proximity(topo, fault_array, 1), topo) 
+    print("dist_fault type:", type(dist_fault))
     
     # 3. Load and Prepare landslide shapefile 
-    landslides = gpd.read_file(args.landslides) 
-    ls_geom = list(landslides.geometry) 
+    landslides = gpd.read_file(args.landslides)
+    
+    #(bug fix) Turned each landslide into point using its centroid
+    ls_geom = [geom.centroid for geom in landslides.geometry]
     
     # 4. Sample non-landslide (negative) points 
     import random 
@@ -220,9 +273,10 @@ def main():
             
         
     # 5. Create dataframes for landslide and non-landslide 
-    df_landslides = create_dataframe(topo, geo, lc, dist_fault, topo, ls_geom, 1) 
-    df_negatives = create_dataframe(topo, geo, lc, dist_fault, topo, neg_geom, 0) 
-    data = df_landslides.append(df_negatives) 
+    df_landslides = create_dataframe(topo, geo, lc, dist_fault, slope_raster, ls_geom, 1) 
+    df_negatives = create_dataframe(topo, geo, lc, dist_fault, slope_raster, neg_geom, 0)
+    
+    data = pd.concat([df_landslides, df_negatives], ignore_index=True)
     
     # 6. Train classifier 
     from sklearn.model_selection import train_test_split 
@@ -236,7 +290,7 @@ def main():
         print("Model accuracy", clf.score(x_test, y_test)) 
     
     # 7. Predict probabilities raster    
-    prob_map = make_prob_raster_data(topo, geo, lc, dist_fault, topo, clf)
+    prob_map = make_prob_raster_data(topo, geo, lc, dist_fault, slope_raster, clf)
     
     # 8. Save to file 
     profile = topo.profile 

@@ -1,4 +1,4 @@
-"""This contins a single function to caluate the Euclidian
+"""This contins a single function to calcuate the Euclidian
    distance from a value in a numpy ratser, using a rasterio
    object as a template. It matches GDAL's 'proximity' function."""
 
@@ -35,9 +35,11 @@ def proximity(raster, rasterised, value):
     height, width = rasterised.shape # Find the height and width of the array
     cols, rows = np.meshgrid(np.arange(width), np.arange(height))
     xs, ys = rasterio.transform.xy(raster.transform, rows, cols)
-    # They are actually lists, convert them to arrays
-    xcoords = np.array(xs)
-    ycoords = np.array(ys)
+   # Convert lists to arrays and reshape to match 2D raster grid
+    xcoords = np.array(xs) 
+    xcoords = np.array(ys)
+    xcoords = np.array(xs).reshape(height, width)
+    ycoords = np.array(ys).reshape(height, width)
 
     # find coords of points that have the target value in the rasterised raster
     xindex, yindex = np.where(rasterised==value)

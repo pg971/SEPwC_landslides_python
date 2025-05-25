@@ -236,7 +236,7 @@ def main():
     #Measure distance from pixel to nearest fault line
     dist_array = proximity(topo, fault_array, 1)
     dist_fault = convert_to_rasterio(proximity(topo, fault_array, 1), topo) 
-    print("dist_fault type:", type(dist_fault))
+    #print("dist_fault type:", type(dist_fault))
     
     # 3. Load and Prepare landslide shapefile 
     landslides = gpd.read_file(args.landslides)

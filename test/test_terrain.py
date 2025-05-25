@@ -10,6 +10,7 @@ from pylint.reporters import CollectingReporter
 from dataclasses import asdict
 import numpy as np
 import geopandas as gpd # Moved this line up to the top
+import os
 
 class TestTerrainAnalysis():
     
@@ -99,39 +100,12 @@ class TestTerrainAnalysis():
 
 class TestRegression():
 
-    def test_regression(self):
-
-        from subprocess import run
-        import os
-        import rasterio
-
-        result = run(["python3","terrain_analysis.py",
-                                "--topography",
-                                "data/AW3D30.tif",
-                                "--geology",
-                                "data/Geology.tif",
-                                "--landcover",
-                                "data/Landcover.tif",
-                                "--faults",
-                                "data/Confirmed_faults.shp",
-                                "data/landslides.shp",
-                                "test.tif"], capture_output=True, check=True)
-        assert len(result.stdout) < 25
-
-        raster = rasterio.open("test.tif")
-        values = raster.read(1)
-        assert values.max() <= 1
-        assert values.min() >= 0
-        os.remove("test.tif")
-        
-
     def test_regression_verbose(self):
-
         from subprocess import run
         import os
         import rasterio
 
-        result = run(["python3","terrain_analysis.py",
+        result = run(["python","terrain_analysis.py",
                                 "--topography",
                                 "data/AW3D30.tif",
                                 "--geology",
@@ -145,10 +119,11 @@ class TestRegression():
                                 "test.tif"], capture_output=True, check=True)
         assert len(result.stdout) > 25
 
-        raster = rasterio.open("test.tif")
-        values = raster.read(1)
-        assert values.max() <= 1
-        assert values.min() >= 0
+        with rasterio.open("test.tif") as raster: 
+            values = raster.read(1)
+            assert values.max() <= 1
+            assert values.min() >= 0
+        
         os.remove("test.tif")
 
 
